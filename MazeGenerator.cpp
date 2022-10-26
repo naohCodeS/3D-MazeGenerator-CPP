@@ -6,116 +6,107 @@
 using namespace std;
 
 enum class KIND{PATH, WALL}; //セルの種類
-enum class DIR{F,B,L,R}; //forward, back, left, right
+enum class DIR{F,B,L,R,U,D,SIZE}; //forward, back, left, right
 
-using Maze = vector<vector<KIND>>;
+using Maze = vector<vector<vector<KIND>>>;
 
 struct CORD{
-    int x,y;
-    bool operator<(const CORD& cord)const {return x*10000+y<cord.x*10000+cord.y;};
+    int x,y,z;
+    bool operator<(const CORD& cord)const {return x*1000000+y*1000+z<cord.x*1000000+cord.y*1000+cord.z;};
+    CORD operator+(const CORD& cord) {return {x+cord.x,y+cord.y,z+cord.z};}
+    CORD operator/(const int div) {return {x/div,y/div,z/div};}
 }; //座標
 
-CORD act[] = {{-2,0},{2,0},{0,-2},{0,2}}; //動くときは2セルずつ動く
+CORD act[] = {{-2,0,0},{2,0,0},{0,-2,0},{0,2,0},{0,0,-2},{0,0,2}}; //動くときは2セルずつ動く
 
-Maze generateMaze(int size_x, int size_y){
-    if(size_x%2==0 || size_y%2==0||size_x<5||size_y<5){
+bool canMoveTo(Maze maze, CORD now, DIR dir, int size_x, int size_y, int size_z){ //dir方向に動けるかどうかを判定する
+    CORD moved = now + act[(int)dir];
+    if(moved.x < 0 || moved.x >= size_x || moved.y < 0 || moved.y >= size_y || moved.z < 0 || moved.z >= size_z) return false;
+    if(maze[moved.x][moved.y][moved.z] == KIND::WALL) return true;
+    else return false;
+}
+
+bool cantMove(Maze maze, CORD now, int size_x, int size_y, int size_z){ //どこにも動けない状態かどうかを判定する
+    return !canMoveTo(maze, now, DIR::F, size_x, size_y, size_z) &&
+           !canMoveTo(maze, now, DIR::B, size_x, size_y, size_z) &&
+           !canMoveTo(maze, now, DIR::L, size_x, size_y, size_z) &&
+           !canMoveTo(maze, now, DIR::R, size_x, size_y, size_z) &&
+           !canMoveTo(maze, now, DIR::U, size_x, size_y, size_z) &&
+           !canMoveTo(maze, now, DIR::D, size_x, size_y, size_z);
+}
+
+void moveTo(Maze& maze, CORD *now, DIR dir){//dir方向に動く, maze,nowの書き換えも実行
+    CORD moved[2] = {*now+act[(int)dir]/2, *now+act[(int)dir]};
+    maze[moved[0].x][moved[0].y][moved[0].z] = maze[moved[1].x][moved[1].y][moved[1].z] = KIND::PATH;
+    *now = moved[1];
+}
+
+Maze generateMaze(int size_x, int size_y, int size_z){
+    if(size_x%2==0 || size_y%2==0|| size_z%2==0 || size_x<5 || size_y<5 || size_z < 5 ){
         cout<<"invalid size input"<<endl;
     }
     //初期化
-    Maze maze(size_x, vector<KIND>(size_y, KIND::PATH)); //迷路本体
-    vector<CORD> wallStock; //wallStock[i]はi番目のセルに到達するまでに通った道のり
-    set<CORD> isCurrentWall; //現在拡張中の壁
+    Maze maze(size_x, vector<vector<KIND>>(size_y, vector<KIND>(size_z, KIND::WALL))); //迷路本体
     set<CORD> startCord;//スタート座標の候補
     random_device seed;
     mt19937 gen(seed());
-    for(int x=0; x<size_x; x++) maze[x][0] = maze[x][size_y-1] = KIND::WALL; //外側を壁で囲う
-    for(int y=0; y<size_y; y++) maze[0][y] = maze[size_x-1][y] = KIND::WALL;
-    for(int x=2; x<size_x-1; x+=2) for(int y=2; y<size_y-1; y+=2) { //スタート座標候補を初期化
-        CORD cord = {x,y}; 
-        startCord.insert(cord);
-    }
+    startCord.insert({1,1,1});//スタート座標候補を初期化
 
     while(startCord.size() != 0){
-        //ループごとの初期化
-        wallStock.clear();
-        isCurrentWall.clear();
+        //スタート位置の決定
         auto ite = startCord.begin();
         uniform_int_distribution<> startCordRand(0,startCord.size()-1);
         advance(ite, startCordRand(gen));
         CORD now = *ite;
-        maze[now.x][now.y] = KIND::WALL;
+
+        if(cantMove(maze, now, size_x, size_y, size_z)){//動けない場合そのセルをスタート座標候補から除外し、新たにスタートする
+            startCord.erase(now);
+            continue;
+        }
+        maze[now.x][now.y][now.z] = KIND::PATH;
         while(1){
-            wallStock.push_back(now);
-            isCurrentWall.insert(now);
-            if(startCord.find(now)!=startCord.end()) startCord.erase(now);
-            uniform_int_distribution<> dirRand(0, sizeof(DIR)-1);
+            if(cantMove(maze, now, size_x, size_y, size_z)) break;
+            if(startCord.find(now)==startCord.end()) startCord.insert(now);
+            uniform_int_distribution<> dirRand(0, (int)DIR::SIZE-1);
             DIR dir = (DIR)dirRand(gen);
             if(dir == DIR::F){
-                CORD new_cord = {now.x+act[(int)DIR::F].x, now.y+act[(int)DIR::F].y};
-                if(isCurrentWall.find(new_cord)!=isCurrentWall.end()) dir = DIR::B; //進む先が伸ばしている壁だった時->方向を変える
-                else {
-                    if(maze[new_cord.x][new_cord.y] == KIND::WALL) {//伸ばしていない壁に当たった場合接続してループを終了
-                        maze[now.x+act[(int)DIR::F].x/2][now.y+act[(int)DIR::F].y/2] = KIND::WALL;
-                        break;
-                    }
-                    maze[now.x+act[(int)DIR::F].x/2][now.y+act[(int)DIR::F].y/2] = maze[new_cord.x][new_cord.y] = KIND::WALL; //壁を伸ばす
-                    now = new_cord;
-                }
+                if(!canMoveTo(maze, now, dir, size_x, size_y, size_z)) dir = DIR::B; //dir方向に進めない場合、進む方向を回転する
+                else moveTo(maze, &now, dir); //掘る
             }
             if(dir == DIR::B){
-                CORD new_cord = {now.x+act[(int)DIR::B].x, now.y+act[(int)DIR::B].y};
-                if(isCurrentWall.find(new_cord)!=isCurrentWall.end()) dir = DIR::L; //進む先が伸ばしている壁だった時->方向を変える 
-                else {
-                    if(maze[new_cord.x][new_cord.y] == KIND::WALL) {//伸ばしていない壁に当たった場合接続してループを終了
-                        maze[now.x+act[(int)DIR::B].x/2][now.y+act[(int)DIR::B].y/2] = KIND::WALL;
-                        break;
-                    }
-                    maze[now.x+act[(int)DIR::B].x/2][now.y+act[(int)DIR::B].y/2] = maze[new_cord.x][new_cord.y] = KIND::WALL; //壁を伸ばす
-                    now = new_cord;
-                }
+                if(!canMoveTo(maze, now, dir, size_x, size_y, size_z)) dir = DIR::L;
+                else moveTo(maze, &now, dir);
             }
             if(dir == DIR::L){
-                CORD new_cord = {now.x+act[(int)DIR::L].x, now.y+act[(int)DIR::L].y};
-                if(isCurrentWall.find(new_cord)!=isCurrentWall.end()) dir = DIR::R; //進む先が伸ばしている壁だった時->方向を変える
-                else {
-                    if(maze[new_cord.x][new_cord.y] == KIND::WALL) {//伸ばしていない壁に当たった場合接続してループを終了
-                        maze[now.x+act[(int)DIR::L].x/2][now.y+act[(int)DIR::L].y/2] = KIND::WALL;
-                        break;
-                    }
-                    maze[now.x+act[(int)DIR::L].x/2][now.y+act[(int)DIR::L].y/2] = maze[new_cord.x][new_cord.y] = KIND::WALL; //壁を伸ばす
-                    now = new_cord;
-                }
+                if(!canMoveTo(maze, now, dir, size_x, size_y, size_z)) dir = DIR::R;
+                else moveTo(maze, &now, dir);
             }
             if(dir == DIR::R){
-                CORD new_cord = {now.x+act[(int)DIR::R].x, now.y+act[(int)DIR::R].y};
-                if(isCurrentWall.find(new_cord)!=isCurrentWall.end()){ //進む先が伸ばしている壁だった時->方向を変えない
-                    if(wallStock.size()<=2) break; //もう戻れないとき
-                    else {
-                        wallStock.pop_back();
-                        wallStock.pop_back();
-                        now = wallStock.back(); //ひとつ前に戻る
-                    }
-                }
-                else {
-                    if(maze[new_cord.x][new_cord.y] == KIND::WALL) {//伸ばしていない壁に当たった場合接続してループを終了
-                        maze[now.x+act[(int)DIR::R].x/2][now.y+act[(int)DIR::R].y/2] = KIND::WALL;
-                        break;
-                    }
-                    maze[now.x+act[(int)DIR::R].x/2][now.y+act[(int)DIR::R].y/2] = maze[new_cord.x][new_cord.y] = KIND::WALL; //壁を伸ばす
-                    now = new_cord;
-                }
+                if(!canMoveTo(maze, now, dir, size_x, size_y, size_z)) dir = DIR::U;
+                else moveTo(maze, &now, dir);
+            }
+            if(dir == DIR::U){
+                if(!canMoveTo(maze, now, dir, size_x, size_y, size_z)) dir = DIR::D;
+                else moveTo(maze, &now, dir);
+            }
+            if(dir == DIR::D){
+                if(!canMoveTo(maze, now, dir, size_x, size_y, size_z)) dir = DIR::F;
+                else moveTo(maze, &now, dir);
             }
         }
     }
-
     return maze;
 }
 
 int main(int argc, char* args[]){
-    Maze maze = generateMaze(atoi(args[1]), atoi(args[2]));
+    Maze maze = generateMaze(atoi(args[1]), atoi(args[2]), atoi(args[3]));
     for(int i=0; i<atoi(args[1]); i++){
-        for(int j=0; j<atoi(args[2]); j++)
-            cout<<(maze[i][j]==KIND::WALL?"# ":"  ");
-        cout<<endl;
+        cout<<"x = "<<i<<endl;
+        for(int j=0; j<atoi(args[2]); j++){
+            for(int k=0; k<atoi(args[3]); k++)
+                cout<<(maze[i][j][k]==KIND::WALL?"# ":"  ");
+            cout<<endl;
+        }
+        cout<<"--------------------------------"<<endl;
     }
 }
