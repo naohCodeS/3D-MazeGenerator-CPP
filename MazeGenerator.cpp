@@ -53,8 +53,7 @@ Maze generateMaze(int size_x, int size_y, int size_z){
     startCord.insert({1,1,1});//スタート座標候補を初期化
 
     while(startCord.size() != 0){
-        //スタート位置の決定
-        auto ite = startCord.begin();
+        auto ite = startCord.begin();//スタート位置の決定
         uniform_int_distribution<> startCordRand(0,startCord.size()-1);
         advance(ite, startCordRand(gen));
         CORD now = *ite;
@@ -69,30 +68,8 @@ Maze generateMaze(int size_x, int size_y, int size_z){
             if(startCord.find(now)==startCord.end()) startCord.insert(now);
             uniform_int_distribution<> dirRand(0, (int)DIR::SIZE-1);
             DIR dir = (DIR)dirRand(gen);
-            if(dir == DIR::F){
-                if(!canMoveTo(maze, now, dir, size_x, size_y, size_z)) dir = DIR::B; //dir方向に進めない場合、進む方向を回転する
-                else moveTo(maze, &now, dir); //掘る
-            }
-            if(dir == DIR::B){
-                if(!canMoveTo(maze, now, dir, size_x, size_y, size_z)) dir = DIR::L;
-                else moveTo(maze, &now, dir);
-            }
-            if(dir == DIR::L){
-                if(!canMoveTo(maze, now, dir, size_x, size_y, size_z)) dir = DIR::R;
-                else moveTo(maze, &now, dir);
-            }
-            if(dir == DIR::R){
-                if(!canMoveTo(maze, now, dir, size_x, size_y, size_z)) dir = DIR::U;
-                else moveTo(maze, &now, dir);
-            }
-            if(dir == DIR::U){
-                if(!canMoveTo(maze, now, dir, size_x, size_y, size_z)) dir = DIR::D;
-                else moveTo(maze, &now, dir);
-            }
-            if(dir == DIR::D){
-                if(!canMoveTo(maze, now, dir, size_x, size_y, size_z)) dir = DIR::F;
-                else moveTo(maze, &now, dir);
-            }
+            if(!canMoveTo(maze, now, dir, size_x, size_y, size_z)) dir = (DIR)(((int)dir+1)%(int)DIR::SIZE);
+            else moveTo(maze, &now, dir);
         }
     }
     return maze;
