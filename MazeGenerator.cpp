@@ -43,7 +43,7 @@ void moveTo(Maze& maze, CORD *now, DIR dir){//dir方向に動く, maze,nowの書
 
 Maze generateMaze(int size_x, int size_y, int size_z){
     if(size_x%2==0 || size_y%2==0|| size_z%2==0 || size_x<5 || size_y<5 || size_z < 5 ){
-        cout<<"invalid size input"<<endl;
+        cout<<"invalid size input (each side must be odd with at least )"<<endl;
     }
     //初期化
     Maze maze(size_x, vector<vector<KIND>>(size_y, vector<KIND>(size_z, KIND::WALL))); //迷路本体
@@ -76,7 +76,7 @@ Maze generateMaze(int size_x, int size_y, int size_z){
 }
 
 int main(int argc, char* args[]){
-    Maze maze = generateMaze(atoi(args[1]), atoi(args[2]), atoi(args[3]));
+    Maze maze = generateMaze(atoi(args[1]), atoi(args[2]), atoi(args[3])); //３次元迷路の生成
     for(int i=0; i<atoi(args[1]); i++){
         cout<<"x = "<<i<<endl;
         for(int j=0; j<atoi(args[2]); j++){
